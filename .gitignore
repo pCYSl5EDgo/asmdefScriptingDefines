@@ -1,0 +1,11 @@
+bin/*
+obj/*
+.vs/*
+*.DotSettings.user
+*.dll
+*.zip
+*.unitypackage
+*.sln
+
+README-BOOTH.md
+LICENSE-BOOTH
