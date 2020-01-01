@@ -3,15 +3,6 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <LangVersion>7.2</LangVersion>
-    <Authors>pCYSl5EDgo</Authors>
-    <Company>pCYSl5EDgo</Company>
-    <Copyright>pCYSl5EDgo</Copyright>
-    <PackageId>asmdefDefineSymbols</PackageId>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>1.0.0</Version>
-    <PackAsTool>true</PackAsTool>
-    <PackageReleaseNotes>1.0.0 : Initial Commit</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MicroBatchFramework" Version="1.6.1" />
