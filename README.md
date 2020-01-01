@@ -8,7 +8,7 @@ This repository consists of three C# projects.
  - asmdefDefineSymbols.Editor
  - asmdefScriptingDefines.Extension
 
-# Environemnts
+# Required software & Supported Unity version(Environments)
 
  - **Required** : .NET Core 2.1 or above
  - **Supported** : Unity 2018.4
