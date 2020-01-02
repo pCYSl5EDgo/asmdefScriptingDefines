@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace UnityEditor.ForCuteIzmChan
 {
-    public sealed class DefineProcessorV1 : IDefineProcessor
+    public sealed class DefineProcessorV2 : IDefineProcessor
     {
         public string Version => "1.0.0";
-        public void Process(ref string[] defines, string commands)
+        public IEnumerable<string> Process(IEnumerable<string> defines, string commands)
         {
             var adds = new HashSet<string>();
             var removes = new HashSet<string>();
@@ -31,7 +30,7 @@ namespace UnityEditor.ForCuteIzmChan
             }
 
             if (adds.Count == 0 && removes.Count == 0)
-                return;
+                return Array.Empty<string>();
             foreach (var s in defines)
             {
                 adds.Add(s);
@@ -40,7 +39,7 @@ namespace UnityEditor.ForCuteIzmChan
             {
                 adds.Remove(s);
             }
-            defines = adds.ToArray();
+            return adds;
         }
     }
 }

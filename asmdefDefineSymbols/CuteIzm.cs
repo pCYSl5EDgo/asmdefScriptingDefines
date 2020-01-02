@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
+using Mono.Collections.Generic;
 
 namespace ForCuteIzmChan
 {
@@ -61,33 +63,68 @@ namespace ForCuteIzmChan
         {
             AssemblyImporter.Import(unityEditor.Module, UtilityAssemblyName);
 
-            InjectScriptingDefineSymbolsIntoMonoIsland(unityEditor.Module);
+            InjectScriptingDefineSymbolsIntoGenerateResponseFile(unityEditor.Module);
         }
 
-        private static void InjectScriptingDefineSymbolsIntoMonoIsland(ModuleDefinition unityEditor)
+        private static void InjectScriptingDefineSymbolsIntoGenerateResponseFile(ModuleDefinition module)
         {
-            var type = unityEditor.GetType("UnityEditor.Scripting", "MonoIsland");
+            var microsoftCSharpCompiler = module.GetType("UnityEditor.Scripting.Compilers.MicrosoftCSharpCompiler");
+            var generateResponseFile = microsoftCSharpCompiler.Methods.First(x => x.Name == "GenerateResponseFile");
 
-            bool DoesAssignDefines(MethodDefinition definition)
-            {
-                foreach (var instruction in definition.Body.Instructions)
-                {
-                    if (instruction.OpCode.Code != Code.Stfld) continue;
-                    var field = (FieldReference)instruction.Operand;
-                    if (field.Name == "_defines")
-                        return true;
-                }
-                return false;
-            }
+            var scriptAssembly = module.GetType("UnityEditor.Scripting.ScriptCompilation", "ScriptAssembly");
+            var getFileName = scriptAssembly.Methods.First(x => x.Name == "get_Filename");
 
-            // ReSharper disable once ForCanBeConvertedToForeach
-            for (var index = type.Methods.Count - 1; index >= 0; index--)
+            var body = generateResponseFile.Body;
+            body.SimplifyMacros();
+
+            var instructions = body.Instructions;
+
+            var indexOfLoadFieldDefines = FindIndexOfLoadFieldDefines(instructions);
+
+            var stringType = module.TypeSystem.String;
+            var iEnumerable = module.FindType("System.Collections.Generic", "IEnumerable`1");
+            iEnumerable.GenericParameters.Add(new GenericParameter("T", iEnumerable));
+
+            var stringEnumerable = new GenericInstanceType(iEnumerable)
             {
-                var constructor = type.Methods[index];
-                if (constructor.Name != ".ctor") continue;
-                if (DoesAssignDefines(constructor))
-                    FindAsmDefDefinesAndInjectToConstructor(constructor);
+                GenericArguments = { stringType }
+            };
+
+            var forCuteIzmChan = module.AssemblyReferences.First(x => x.Name == UtilityAssemblyName);
+            var assemblyDefinitionFinder = new TypeReference(UtilityAssemblyName, "AssemblyDefinitionFinder", module, forCuteIzmChan, false);
+            var modify = assemblyDefinitionFinder.FindMethod(stringEnumerable, "Modify", false, stringEnumerable, stringType);
+
+            var adds = new Instruction[]
+            {
+                Instruction.Create(OpCodes.Ldarg_0), 
+                Instruction.Create(OpCodes.Callvirt, getFileName),
+                Instruction.Create(OpCodes.Call, modify), 
+            };
+
+            InsertAfter(body.GetILProcessor(), instructions[indexOfLoadFieldDefines], adds);
+
+            body.Optimize();
+        }
+
+        private static int FindIndexOfLoadFieldDefines(Collection<Instruction> instructions)
+        {
+            for (var index = 0; index < instructions.Count; index++)
+            {
+                var instruction = instructions[index];
+                if (instruction.OpCode.Code != Code.Ldarg) continue;
+                var arg0 = (ParameterDefinition)instruction.Operand;
+                if (arg0.Index != 0) continue;
+
+                if (index + 1 >= instructions.Count) return -1;
+
+                var callVirtual = instructions[index + 1];
+                if (callVirtual.OpCode.Code != Code.Callvirt) continue;
+
+                var getDefines = (MethodReference)callVirtual.Operand;
+                if (getDefines.Name != "get_Defines") continue;
+                return index + 1;
             }
+            return -1;
         }
 
         private static ReaderParameters PrepareReaderParameters(string directory)
@@ -102,39 +139,9 @@ namespace ForCuteIzmChan
             return readerParameters;
         }
 
-        private static void FindAsmDefDefinesAndInjectToConstructor(MethodDefinition method)
+        private static void InsertAfter(ILProcessor processor, Instruction instruction, Instruction[] adds)
         {
-            var module = method.Module;
-            var stringType = module.TypeSystem.String;
-            var stringTypeArray = new ArrayType(stringType, 1);
-
-            var monoIsland = method.DeclaringType;
-
-            var _output = monoIsland.Fields.First(x => x.Name == "_output");
-            var _defines = monoIsland.Fields.First(x => x.Name == "_defines");
-
-            var forCuteIzmChan = module.AssemblyReferences.First(x => x.Name == UtilityAssemblyName);
-            var assemblyDefinitionFinder = new TypeReference(UtilityAssemblyName, "AssemblyDefinitionFinder", module, forCuteIzmChan, false);
-            var modify = assemblyDefinitionFinder.FindVoidMethod("Modify", false, new ByReferenceType(stringTypeArray), stringType);
-
-            var adds = new[]
-            {
-                Instruction.Create(OpCodes.Ldarg_0),
-                Instruction.Create(OpCodes.Ldflda, _defines),
-                Instruction.Create(OpCodes.Ldarg_0),
-                Instruction.Create(OpCodes.Ldfld, _output),
-
-                Instruction.Create(OpCodes.Call, modify),
-            };
-
-            var processor = method.Body.GetILProcessor();
-            var instructions = method.Body.Instructions;
-            InsertBefore(processor, instructions[instructions.Count - 1], adds);
-        }
-
-        private static void InsertBefore(ILProcessor processor, Instruction instruction, Instruction[] adds)
-        {
-            processor.InsertBefore(instruction, adds[0]);
+            processor.InsertAfter(instruction, adds[0]);
             for (var j = 1; j < adds.Length; j++)
             {
                 processor.InsertAfter(adds[j - 1], adds[j]);

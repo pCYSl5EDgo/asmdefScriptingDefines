@@ -9,16 +9,16 @@ namespace UnityEditor.ForCuteIzmChan
     internal static class AssemblyDefinitionFinder
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void Modify(ref string[] defines, string outputDllPath)
+        internal static IEnumerable<string> Modify(IEnumerable<string> defines, string outputDllPath)
         {
             var dllName = Path.GetFileNameWithoutExtension(outputDllPath);
             var asmdefPath = FindByName(dllName);
-            if (asmdefPath is null) return;
+            if (asmdefPath is null) return defines;
             var definesPath = asmdefPath + "_defines";
-            if (!File.Exists(definesPath)) return;
+            if (!File.Exists(definesPath)) return defines;
 
             var contents = File.ReadAllText(definesPath);
-            ModifyDefines(ref defines, contents);
+            return ModifyDefines(defines, contents);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -30,15 +30,13 @@ namespace UnityEditor.ForCuteIzmChan
             return Directory.EnumerateFiles("./Assets", searchPattern, SearchOption.AllDirectories).FirstOrDefault(Predicate)
                    ?? Directory.EnumerateFiles("./Packages", searchPattern, SearchOption.AllDirectories).FirstOrDefault(Predicate);
         }
+        private static readonly DefineProcessorV2 ProcessorV2 = new DefineProcessorV2();
 
-        private static readonly Dictionary<string, IDefineProcessor> ProcessorDictionary = new Dictionary<string, IDefineProcessor>();
-
-        private static void ModifyDefines(ref string[] defines, string text)
+        private static IEnumerable<string> ModifyDefines(IEnumerable<string> defines, string text)
         {
             if (defines is null)
                 defines = Array.Empty<string>();
-            if (string.IsNullOrWhiteSpace(text)) return;
-            new DefineProcessorV1().Process(ref defines, text);
+            return string.IsNullOrWhiteSpace(text) ? defines : ProcessorV2.Process(defines, text);
         }
     }
 }
