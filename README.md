@@ -11,7 +11,7 @@ This repository consists of three C# projects.
 # Required software & Supported Unity version(Environments)
 
  - **Required** : .NET Core 2.1 or above
- - **Supported** : Unity 2018.4
+ - **Supported** : Unity 2018.4, 2019.3
 
 # Background
 
@@ -20,7 +20,7 @@ Sometimes I want to add custom `Scripting Define Symbols` to the specific `Assem
 
 # Easy way to install
 
-If you do not want to build whole solution for yourself. Go to [BOOTH](https://pcysl5edgo.booth.pm/items/1756645) and Buy it with 900 Japanese yen.
+If you do not want to build whole solution for yourself. Go to [BOOTH](https://pcysl5edgo.booth.pm/items/1756645) and Buy it with 1000 Japanese yen.
 
 # Installation for Unity Editor
 
@@ -80,3 +80,16 @@ Sample code of `A.asmdef_defines`.
 Multi-line comment is not supported.<br/>
 Each line should starts with any of those four `Command Letter`s.<br/>
 Next to a `Command Letter`, a `Define Symbol` follows.
+
+# Editor Extension
+
+Include `asmdefScriptingDefines.Extension` folder into your Project's `Editor` folder.
+You may have the ability to edit the `asmdef_defines` file in the Unity Inspector.
+
+
+# Special Thanks
+
+ - [mob_sakai](https://twitter.com/mob_sakai) : Thank you for your kindness, advice, intelligence. With your help, I made this work on Unity2019.3.
+ - [Jb Evain](https://twitter.com/jbevain) : Thank you for your brilliant [Mono.Cecil]().
+ - [neuecc](https://twitter.com/neuecc) : Thank you for your great [MicroBatchFramework](). I made this for you.
+ - [izm](https://twitter.com/izm) : I made this for you.
