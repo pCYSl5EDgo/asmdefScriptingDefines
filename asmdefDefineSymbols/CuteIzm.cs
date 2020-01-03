@@ -12,27 +12,6 @@ namespace ForCuteIzmChan
         private const string UnityEditorDll = "UnityEditor.dll";
         private const string UtilityAssemblyName = "UnityEditor.ForCuteIzmChan";
 
-        [Command(new[]
-        {
-            "copy",
-            "c",
-        })]
-        public void Copy(
-            [Option(0, "Directory that includes " + UnityEditorDll + ".\r\nSuch as " + @"""C:\Program Files\Unity\Hub\Editor\2018.4.14f1\Editor\Data\Managed""")]string directory,
-            [Option(1, UtilityAssemblyName + ".dll path")] string path
-        )
-        {
-            try
-            {
-                var destination = Path.Combine(directory, UtilityAssemblyName + ".dll");
-                File.Copy(path, destination, true);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
-
         [Command(new[]{
             "execute",
             "e",
