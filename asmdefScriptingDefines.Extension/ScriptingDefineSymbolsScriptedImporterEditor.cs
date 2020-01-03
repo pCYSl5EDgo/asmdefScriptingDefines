@@ -11,8 +11,8 @@ namespace ForCuteIzmChan
     {
         private static class Styles
         {
-            public static readonly GUIContent apply = EditorGUIUtility.TrTextContent("Apply");
-            public static readonly GUIContent revert = EditorGUIUtility.TrTextContent("Revert");
+            public static readonly GUIContent Apply = EditorGUIUtility.TrTextContent("Apply");
+            public static readonly GUIContent Revert = EditorGUIUtility.TrTextContent("Revert");
         }
         private ReorderableList list;
         private ScriptingDefineSymbolsScriptableObject obj;
@@ -40,28 +40,35 @@ namespace ForCuteIzmChan
 
             using (new EditorGUI.DisabledScope(!modified))
             {
-                if (GUILayout.Button(Styles.revert))
+                if (GUILayout.Button(Styles.Revert))
                 {
                     InitializeFields();
                     InitializeList();
                 }
 
-                if (GUILayout.Button(Styles.apply))
+                if (GUILayout.Button(Styles.Apply))
                 {
                     SaveAndInitializeFields();
                 }
             }
 
             GUILayout.EndHorizontal();
+#if UNITY_2019 || UNITY_2020 || UNITY_2021 || UNITY_2022
+            ApplyRevertGUI();
+#endif
         }
 
         public override void OnDisable()
         {
-            if(!modified || obj == null) return;
-            if (EditorUtility.DisplayDialog("Change Not Applied!", "Change has not been applied!", "Apply", "Revert"))
+            if (modified && obj != null)
             {
-                Save();
+                if (EditorUtility.DisplayDialog("Change Not Applied!", "Change has not been applied!", "Apply", "Revert"))
+                {
+                    Save();
+                }
             }
+            
+            base.OnDisable();
         }
 
         private void SaveAndInitializeFields()
@@ -73,14 +80,16 @@ namespace ForCuteIzmChan
 
         private void Save()
         {
-            var importer = (ScriptingDefineSymbolsScriptedImporter) this.target;
+            var importer = (ScriptingDefineSymbolsScriptedImporter) target;
             File.WriteAllText(importer.assetPath, obj.ToString());
+            var asmdef = importer.assetPath.Substring(0, importer.assetPath.Length - 8);
+            AssetDatabase.ImportAsset(asmdef);
         }
 
         private void InitializeFields()
         {
             modified = false;
-            var importer = (ScriptingDefineSymbolsScriptedImporter) this.target;
+            var importer = (ScriptingDefineSymbolsScriptedImporter) target;
             obj = CreateInstance<ScriptingDefineSymbolsScriptableObject>();
             obj.Parse(File.ReadAllText(importer.assetPath));
         }

@@ -60,21 +60,31 @@ namespace ForCuteIzmChan
         private static void SetUpUnityEditor(ModuleClose unityEditor)
         {
             AssemblyImporter.Import(unityEditor.Module, UtilityAssemblyName);
-
-            InjectScriptingDefineSymbolsIntoGenerateResponseFile(unityEditor.Module);
+            
+            InjectScriptingDefineSymbolsIntoMonoIsland(unityEditor.Module);
+            if(IfScriptCompilerBaseDoesNotHaveMonoIsland(unityEditor.Module))
+            {
+                InjectScriptingDefineSymbolsIntoScriptAssemblyDefinesSetter(unityEditor.Module);
+            }
         }
 
-        private static void InjectScriptingDefineSymbolsIntoGenerateResponseFile(ModuleDefinition module)
+        private static bool IfScriptCompilerBaseDoesNotHaveMonoIsland(ModuleDefinition module)
+        {
+            var scriptCompilerBase = module.GetType("UnityEditor.Scripting.Compilers", "ScriptCompilerBase");
+            if (scriptCompilerBase is null) return false;
+
+            var monoIsland = scriptCompilerBase.Fields.SingleOrDefault(x => x.FieldType.FullName == "UnityEditor.Scripting.MonoIsland");
+            return monoIsland is null;
+        }
+
+        private static void InjectScriptingDefineSymbolsIntoScriptAssemblyDefinesSetter(ModuleDefinition module)
         {
             var stringType = module.TypeSystem.String;
 
-            var microsoftCSharpCompiler = module.GetType("UnityEditor.Scripting.Compilers", "ScriptCompilerBase");
-            var ctor = microsoftCSharpCompiler.Methods.First(x => x.Name == ".ctor");
-
             var scriptAssembly = module.GetType("UnityEditor.Scripting.ScriptCompilation", "ScriptAssembly");
             var getFilename = scriptAssembly.Methods.First(x => x.Name == "get_Filename");
-            var getDefines = scriptAssembly.Methods.First(x => x.Name == "get_Defines");
             var setDefines = scriptAssembly.Methods.First(x => x.Name == "set_Defines");
+            var defines = scriptAssembly.Fields.First(x => x.Name == "<Defines>k__BackingField");
 
             var stringArray = new ArrayType(stringType, 1);
 
@@ -82,34 +92,83 @@ namespace ForCuteIzmChan
             var assemblyDefinitionFinder = new TypeReference(UtilityAssemblyName, "AssemblyDefinitionFinder", module, forCuteIzmChan, false);
             var modify = assemblyDefinitionFinder.FindVoidMethod("Modify", false, new ByReferenceType(stringArray), stringType);
 
-            var body = ctor.Body;
-            var tmpArrayVariable = new VariableDefinition(stringArray);
-            body.Variables.Add(tmpArrayVariable);
+            var body = setDefines.Body;
             var instructions = body.Instructions;
 
             var end = Instruction.Create(OpCodes.Nop);
 
             var adds = new[]
             {
-                Instruction.Create(OpCodes.Ldarg_1),
+                Instruction.Create(OpCodes.Ldarg_0), 
+                Instruction.Create(OpCodes.Call, getFilename),
                 Instruction.Create(OpCodes.Brfalse_S, end),
 
-                Instruction.Create(OpCodes.Ldarg_1),
-                Instruction.Create(OpCodes.Call, getDefines),
-                Instruction.Create(OpCodes.Stloc, tmpArrayVariable),
-                Instruction.Create(OpCodes.Ldloca, tmpArrayVariable),
-                Instruction.Create(OpCodes.Ldarg_1),
+                Instruction.Create(OpCodes.Ldarg_0),
+                Instruction.Create(OpCodes.Ldflda, defines),
+                Instruction.Create(OpCodes.Ldarg_0),
                 Instruction.Create(OpCodes.Call, getFilename),
                 Instruction.Create(OpCodes.Call, modify),
-
-                Instruction.Create(OpCodes.Ldarg_1),
-                Instruction.Create(OpCodes.Ldloc, tmpArrayVariable),
-                Instruction.Create(OpCodes.Call, setDefines),
 
                 end,
             };
 
             InsertBefore(body.GetILProcessor(), instructions[instructions.Count - 1], adds);
+        }
+
+        private static void InjectScriptingDefineSymbolsIntoMonoIsland(ModuleDefinition unityEditor)
+        {
+            var type = unityEditor.GetType("UnityEditor.Scripting", "MonoIsland");
+
+            bool DoesAssignDefines(MethodDefinition definition)
+            {
+                foreach (var instruction in definition.Body.Instructions)
+                {
+                    if (instruction.OpCode.Code != Code.Stfld) continue;
+                    var field = (FieldReference)instruction.Operand;
+                    if (field.Name == "_defines")
+                        return true;
+                }
+                return false;
+            }
+
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (var index = type.Methods.Count - 1; index >= 0; index--)
+            {
+                var constructor = type.Methods[index];
+                if (constructor.Name != ".ctor") continue;
+                if (DoesAssignDefines(constructor))
+                    FindAsmDefDefinesAndInjectToConstructor(constructor);
+            }
+        }
+
+        private static void FindAsmDefDefinesAndInjectToConstructor(MethodDefinition method)
+        {
+            var module = method.Module;
+            var stringType = module.TypeSystem.String;
+            var stringTypeArray = new ArrayType(stringType, 1);
+
+            var monoIsland = method.DeclaringType;
+
+            var _output = monoIsland.Fields.First(x => x.Name == "_output");
+            var _defines = monoIsland.Fields.First(x => x.Name == "_defines");
+
+            var forCuteIzmChan = module.AssemblyReferences.First(x => x.Name == UtilityAssemblyName);
+            var assemblyDefinitionFinder = new TypeReference(UtilityAssemblyName, "AssemblyDefinitionFinder", module, forCuteIzmChan, false);
+            var modify = assemblyDefinitionFinder.FindVoidMethod("Modify", false, new ByReferenceType(stringTypeArray), stringType);
+
+            var adds = new[]
+            {
+                Instruction.Create(OpCodes.Ldarg_0),
+                Instruction.Create(OpCodes.Ldflda, _defines),
+                Instruction.Create(OpCodes.Ldarg_0),
+                Instruction.Create(OpCodes.Ldfld, _output),
+
+                Instruction.Create(OpCodes.Call, modify),
+            };
+
+            var processor = method.Body.GetILProcessor();
+            var instructions = method.Body.Instructions;
+            InsertBefore(processor, instructions[instructions.Count - 1], adds);
         }
 
         private static ReaderParameters PrepareReaderParameters(string directory)
